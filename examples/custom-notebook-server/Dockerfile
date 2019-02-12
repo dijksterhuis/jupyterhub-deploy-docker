@@ -5,12 +5,14 @@
 FROM jupyter/scipy-notebook:2d878db5cbff
 
 # Install packages in default Python 3 environment
-RUN pip install \
-  beautifulsoup4==4.4.*
+RUN pip install -U \
+  beautifulsoup4==4.4.* \
+   pyzmq
 
 # Install packages in Python 2 environment
-RUN $CONDA_DIR/envs/python2/bin/pip install \
-  beautifulsoup4==4.4.*
+RUN $CONDA_DIR/envs/python2/bin/pip install -U \
+  beautifulsoup4==4.4.* \
+   pyzmq
 
 # Use custom startup script
 USER root

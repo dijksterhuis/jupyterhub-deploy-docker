@@ -45,18 +45,46 @@ else
 	cert_files=
 endif
 
-check-files: userlist $(cert_files) secrets/oauth.env secrets/postgres.env
+check-files: userlist secrets/postgres.env $(cert_files)
+#secrets/oauth.env
 
 pull:
 	docker pull $(DOCKER_NOTEBOOK_IMAGE)
 
-notebook_image: pull singleuser/Dockerfile
+notebook_image: #pull singleuser/Dockerfile
 	docker build -t $(LOCAL_NOTEBOOK_IMAGE) \
 		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
 		--build-arg DOCKER_NOTEBOOK_IMAGE=$(DOCKER_NOTEBOOK_IMAGE) \
 		singleuser
 
-build: check-files network volumes
+notebook_images: #pull singleuser/Dockerfile
+	docker build -t jupyter-user-base \
+		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/minimal-notebook:8ccdfc1da8d5 \
+		singleuser
+
+	docker build -t jupyter-user-scipy \
+		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/scipy-notebook:8ccdfc1da8d5 \
+		singleuser
+
+	docker build -t jupyter-user-datascience \
+		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/datascience-notebook:8ccdfc1da8d5 \
+		singleuser
+
+	docker build -t jupyter-user-tensorflow \
+		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/tensorflow-notebook:8ccdfc1da8d5 \
+		singleuser
+
+	docker build -t jupyter-user-r \
+		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/r-notebook:8ccdfc1da8d5 \
+		singleuser
+
+
+build: network check-files volumes
 	docker-compose build
 
-.PHONY: network volumes check-files pull notebook_image build
+.PHONY: network volumes check-files pull notebook_images build
