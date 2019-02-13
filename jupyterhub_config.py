@@ -11,9 +11,25 @@ c = get_config()
 # configuration parameter.
 
 # Spawn single-user servers as Docker containers
-c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
-# Spawn containers from this image
-c.DockerSpawner.image = os.environ['DOCKER_NOTEBOOK_IMAGE']
+c.JupyterHub.spawner_class = 'dockerspawner.SystemUserSpawner'
+c.SystemUserSpawner.host_homedir_format_string = '/home/{username}'
+c.LocalAuthenticator.create_system_users = False
+
+# Container(s) to spawn
+#c.DockerSpawner.container_image = os.environ['DOCKER_NOTEBOOK_IMAGE']
+c.DockerSpawner.image_whitelist = {"scipy":"jupyter-user-scipy" \
+                                   , "base":"jupyter-user-base" \
+                                   , "tensorflow-cpu":"jupyter-user-tensorflow" \
+                                   , "datascience":"jupyter-user-datascience" \
+                                   , "r":"jupyter-user-r" \
+                                   , "tensorflow-gpu-py3":"jupyter-user-tf-gpu-py3" \
+                                   , "tensorflow-gpu-py2":"jupyter-user-tf-gpu-py2" \
+                                   , "caffe2-py3":"jupyter-user-caffe2-py3" \
+                                   , "torch-gpu":"jupyter-user-torch-gpu" \
+                                   , "theano-gpu":"jupyter-user-theano-gpu" \
+                                  }
+c.DockerSpawner.name_template = "{imagename}-{username}"
+
 # JupyterHub requires a single-user instance of the Notebook server, so we
 # default to using the `start-singleuser.sh` script included in the
 # jupyter/docker-stacks *-notebook images as the Docker run command when
@@ -21,29 +37,35 @@ c.DockerSpawner.image = os.environ['DOCKER_NOTEBOOK_IMAGE']
 # using the DOCKER_SPAWN_CMD environment variable.
 spawn_cmd = os.environ.get('DOCKER_SPAWN_CMD', "start-singleuser.sh")
 c.DockerSpawner.extra_create_kwargs.update({ 'command': spawn_cmd })
+
 # Connect containers to this Docker network
 network_name = os.environ['DOCKER_NETWORK_NAME']
 c.DockerSpawner.use_internal_ip = True
 c.DockerSpawner.network_name = network_name
+
 # Pass the network name as argument to spawned containers
 c.DockerSpawner.extra_host_config = { 'network_mode': network_name }
+
 # Explicitly set notebook directory because we'll be mounting a host volume to
 # it.  Most jupyter/docker-stacks *-notebook images run the Notebook server as
 # user `jovyan`, and set the notebook directory to `/home/jovyan/work`.
 # We follow the same convention.
-notebook_dir = os.environ.get('DOCKER_NOTEBOOK_DIR') or '/home/jovyan/work'
+notebook_dir = '/home/{username}'
 c.DockerSpawner.notebook_dir = notebook_dir
+
 # Mount the real user's Docker volume on the host to the notebook user's
 # notebook directory in the container
-c.DockerSpawner.volumes = { 'jupyterhub-user-{username}': notebook_dir }
+c.DockerSpawner.volumes = { '/home/{username}/':'/home' }
+#c.DockerSpawner.volumes = { 'jupyterhub-user-{username}': notebook_dir }
+
 # volume_driver is no longer a keyword argument to create_container()
 # c.DockerSpawner.extra_create_kwargs.update({ 'volume_driver': 'local' })
+
 # Remove containers once they are stopped
 c.DockerSpawner.remove_containers = True
+
 # For debugging arguments passed to spawned containers
 c.DockerSpawner.debug = True
-c.DockerSpawner.image_whitelist = {"sciipy":"jupyterhub-user:scipy", "base":"jupyterhub-user", "tf":"jupyterhub-tf"}
-c.DockerSpawner.name_template = "{prefix}-{imagename}-{username}"
 
 # User containers will access hub by container name on the Docker network
 c.JupyterHub.hub_ip = 'jupyterhub'
@@ -74,7 +96,9 @@ c.JupyterHub.db_url = 'postgresql://postgres:{password}@{host}/{db}'.format(
 c.Authenticator.whitelist = whitelist = set()
 c.Authenticator.admin_users = admin = set()
 c.JupyterHub.admin_access = True
+
 pwd = os.path.dirname(__file__)
+
 with open(os.path.join(pwd, 'userlist')) as f:
     for line in f:
         if not line:

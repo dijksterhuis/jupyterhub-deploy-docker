@@ -13,7 +13,7 @@ volumes:
 	@docker volume inspect $(DB_VOLUME_HOST) >/dev/null 2>&1 || docker volume create --name $(DB_VOLUME_HOST)
 
 self-signed-cert:
-	# make a self-signed cert
+	openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./secrets/jupyterhub.key -out ./secrets/jupyterhub.crt
 
 secrets/postgres.env:
 	@echo "Generating postgres password in $@"
@@ -46,45 +46,40 @@ else
 endif
 
 check-files: userlist secrets/postgres.env $(cert_files)
-#secrets/oauth.env
 
 pull:
 	docker pull $(DOCKER_NOTEBOOK_IMAGE)
 
-notebook_image: #pull singleuser/Dockerfile
+notebook-image: pull #singleuser/Dockerfile
 	docker build -t $(LOCAL_NOTEBOOK_IMAGE) \
 		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
 		--build-arg DOCKER_NOTEBOOK_IMAGE=$(DOCKER_NOTEBOOK_IMAGE) \
 		singleuser
 
-notebook_images: #pull singleuser/Dockerfile
-	docker build -t jupyter-user-base \
-		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/minimal-notebook:8ccdfc1da8d5 \
-		singleuser
+jupyter-notebook-images: pull #singleuser/Dockerfile
+	for IMAGE in ${DOCKER_NOTEBOOK_IMAGES}; do \
+		echo jupyter/$$IMAGE-notebook:8ccdfc1da8d5 && \
+		docker build -t jupyter-user-base \
+			--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
+			--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/${IMAGE}-notebook:8ccdfc1da8d5 \
+			singleuser ; \
+	done
 
-	docker build -t jupyter-user-scipy \
+nvidia-notebook-images: pull
+	docker build -t jupyter-user-tf-gpu-py3 \
 		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/scipy-notebook:8ccdfc1da8d5 \
-		singleuser
-
-	docker build -t jupyter-user-datascience \
-		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/datascience-notebook:8ccdfc1da8d5 \
-		singleuser
-
-	docker build -t jupyter-user-tensorflow \
-		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/tensorflow-notebook:8ccdfc1da8d5 \
-		singleuser
-
-	docker build -t jupyter-user-r \
-		--build-arg JUPYTERHUB_VERSION=$(JUPYTERHUB_VERSION) \
-		--build-arg DOCKER_NOTEBOOK_IMAGE=jupyter/r-notebook:8ccdfc1da8d5 \
+		--build-arg DOCKER_NOTEBOOK_IMAGE=nvcr.io/nvidia/tensorflow:19.01-py3 \
 		singleuser
 
 
-build: network check-files volumes
-	docker-compose build
+hub: network check-files volumes
+	docker build -t jupyterhub -f Dockerfile.jupyterhub \
+	--build-arg JUPYTERHUB_VERSION=${JUPYTERHUB_VERSION} \
+	./
+
+all: network check-files volumes hub pull jupyter-notebook-images
+
+run: all
+	docker-compose -f docker-compose.yml -p jupyterhub up
 
 .PHONY: network volumes check-files pull notebook_images build
